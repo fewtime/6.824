@@ -65,7 +65,7 @@ func doMap(
 		log.Fatal(err)
 	}
 
-	// Call the user-defined map function (mapF) for that file's contents
+	// 调用 mapF
 	keyValues := mapF(inFile, string(inContent))
 
 	// 把 keyValues 划分成 nReduce 份

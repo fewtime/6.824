@@ -103,10 +103,9 @@ func doReduce(
 	// 流式编码器
 	enc := json.NewEncoder(outputFile)
 
-	// reduceF
-	for _, k := range keys {
-		key := k
-		value := keyValues[k]
+	// 调用 reduceF
+	for _, key := range keys {
+		value := keyValues[key]
 		err := enc.Encode(KeyValue{key, reduceF(key, value)})
 		if err != nil {
 			log.Fatal(err)
