@@ -1,5 +1,13 @@
 package mapreduce
 
+import (
+	"encoding/json"
+	"io"
+	"log"
+	"os"
+	"sort"
+)
+
 func doReduce(
 	jobName string, // the name of the whole MapReduce job
 	reduceTask int, // which reduce task this is
@@ -44,4 +52,65 @@ func doReduce(
 	//
 	// Your code here (Part I).
 	//
+
+	keyValues := make(map[string][]string)
+
+	for m := 0; m < nMap; m++ {
+		// 打开文件
+		intermediateFile, err := os.Open(reduceName(jobName, m, reduceTask))
+		if err != nil {
+			log.Fatal(err)
+		}
+		// 完成所有后关闭文件
+		defer intermediateFile.Close()
+
+		// JSON流式解码器
+		dec := json.NewDecoder(intermediateFile)
+		for {
+			var kv KeyValue
+			err = dec.Decode(&kv)
+			if err != nil {
+				// 读取到文件末尾
+				if err == io.EOF {
+					break
+				}
+				log.Fatal(err)
+			}
+
+			_, ok := keyValues[kv.Key]
+			// key 不存在
+			if !ok {
+				keyValues[kv.Key] = make([]string, 0)
+			}
+			keyValues[kv.Key] = append(keyValues[kv.Key], kv.Value)
+		}
+	}
+
+	// key 升序排序
+	var keys []string
+	for k, _ := range keyValues {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// 创建输出文件
+	outputFile, err := os.Create(outFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer outputFile.Close()
+
+	// 流式编码器
+	enc := json.NewEncoder(outputFile)
+
+	// reduceF
+	for _, k := range keys {
+		key := k
+		value := keyValues[k]
+		err := enc.Encode(KeyValue{key, reduceF(key, value)})
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 }

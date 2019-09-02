@@ -1,7 +1,11 @@
 package mapreduce
 
 import (
+	"encoding/json"
 	"hash/fnv"
+	"io/ioutil"
+	"log"
+	"os"
 )
 
 func doMap(
@@ -53,6 +57,44 @@ func doMap(
 	//
 	// Your code here (Part I).
 	//
+
+	// 读取 inFile 文件
+	// @Source: https://golang.org/pkg/io/ioutil/#example_ReadFile
+	inContent, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Call the user-defined map function (mapF) for that file's contents
+	keyValues := mapF(inFile, string(inContent))
+
+	// 把 keyValues 划分成 nReduce 份
+	for reduceTask := 0; reduceTask < nReduce; reduceTask++ {
+		// 任务 reduceTask 创建文件
+		// @Source: https://golang.org/pkg/os/#Create
+		intermediateFile, err := os.Create(reduceName(jobName, mapTask, reduceTask))
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// 关闭文件
+		defer intermediateFile.Close()
+
+		// JSON 流式编码器
+		enc := json.NewEncoder(intermediateFile)
+
+		for _, kv := range keyValues {
+			if ihash(kv.Key)%nReduce != reduceTask {
+				// 删掉不需要 reduceTask 处理的 kv
+				continue
+			}
+
+			err := enc.Encode(&kv)
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+	}
 }
 
 func ihash(s string) int {
