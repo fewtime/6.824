@@ -1,6 +1,9 @@
 package mapreduce
 
-import "fmt"
+import (
+	"fmt"
+	"sync"
+)
 
 //
 // schedule() starts and waits for all tasks in the given phase (mapPhase
@@ -30,5 +33,45 @@ func schedule(jobName string, mapFiles []string, nReduce int, phase jobPhase, re
 	//
 	// Your code here (Part III, Part IV).
 	//
+
+	// 等待ntasks任务结束函数
+	wg := sync.WaitGroup{}
+	wg.Add(ntasks)
+
+	for i := 0; i < ntasks; i++ {
+		// 执行任务准备参数
+		args := DoTaskArgs{
+			JobName:       jobName,
+			Phase:         phase,
+			TaskNumber:    i,
+			NumOtherPhase: n_other,
+		}
+
+		// 只有 mapPhase 需要设置 args.File
+		if phase == mapPhase {
+			args.File = mapFiles[i]
+		}
+
+		go func(args DoTaskArgs) {
+			for {
+				// 获取worker地址
+				worker := <-registerChan
+				// 发送任务至 worker 中
+				// 成功则标记并释放资源
+				// 失败则无限循环不断尝试
+				if call(worker, "Worker.DoTask", args, nil) {
+					// 标记结束
+					wg.Done()
+					// worke闲置，worker 重新进入分配队列
+					registerChan <- worker
+					// 任务成功并资源回收完毕，中断循环
+					break
+				}
+			}
+		}(args)
+	}
+
+	wg.Wait()
+
 	fmt.Printf("Schedule: %v done\n", phase)
 }
